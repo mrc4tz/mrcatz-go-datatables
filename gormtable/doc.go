@@ -16,7 +16,7 @@
 //		DB:    db,
 //		Joins: []string{"Kategori"},
 //		BaseWhere: func(ctx context.Context, db *gorm.DB) *gorm.DB {
-//			return db.Where("instansi_id = ?", instansiFrom(ctx))
+//			return db.Where("produks.instansi_id = ?", instansiFrom(ctx)) // qualify: tabel lain bisa ikut di-join
 //		},
 //		Search: &datatable.SearchConfig{Columns: []datatable.SearchColumn{
 //			datatable.Col("nama").W(3), datatable.Col("email"), datatable.Col("kategori.nama"),
