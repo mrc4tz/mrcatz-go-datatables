@@ -1,0 +1,34 @@
+<script setup lang="ts">
+import { col, field, httpSource } from '@mrcatz/datatable-vue';
+
+const source = httpSource({
+  url: '{{.URL}}',
+  schemaUrl: '{{.URL}}/schema',
+  exportUrl: '{{.URL}}/export',
+});
+
+const columns = [
+  col.rowNumber(),
+  col.text('name', 'Name'),
+  col.date('createdAt', 'Created'),
+  col.actions(),
+];
+
+const fields = [field.text('name', 'Name', { required: true })];
+</script>
+
+<template>
+  <MrcCrudTable
+    name="{{.Kebab}}"
+    entity="{{.Label}}"
+    title="{{.LabelPlural}}"
+    :source="source"
+    :columns="columns"
+    :fields="fields"
+    :create="(v) => $fetch('{{.URL}}', { method: 'POST', body: v })"
+    :update="(row, v) => $fetch(`{{.URL}}/${row.id}`, { method: 'PATCH', body: v })"
+    :remove="(row) => $fetch(`{{.URL}}/${row.id}`, { method: 'DELETE' })"
+    :remove-many="(rows) => $fetch('{{.URL}}/bulk-delete', { method: 'POST', body: { ids: rows.map((r) => r.id) } })"
+    :delete-label="(row) => row.name"
+  />
+</template>

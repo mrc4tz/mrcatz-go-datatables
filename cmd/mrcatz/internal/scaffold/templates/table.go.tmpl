@@ -1,0 +1,40 @@
+// Kode ini dibuat oleh `mrcatz make {{.Name}}` — silakan diubah.
+
+package {{.Package}}
+
+import (
+	"time"
+
+	"github.com/mrc4tz/mrcatz-go-datatables/datatable"
+	"github.com/mrc4tz/mrcatz-go-datatables/gormtable"
+	"gorm.io/gorm"
+)
+
+// {{.Model}} adalah model GORM untuk tabel {{.Table}}.
+// TODO: sesuaikan field dengan skema database (atau ganti dengan model yang
+// sudah ada). Kunci sort/filter/pencarian memakai nama tag `json`.
+type {{.Model}} struct {
+	ID uint `json:"id" gorm:"primaryKey"`
+	Name string `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// TableName memetakan {{.Model}} ke tabel database.
+func ({{.Model}}) TableName() string { return "{{.Table}}" }
+
+// NewTable membuat tabel {{.Label}}: kolom pencarian, filter, dan urutan yang diizinkan.
+func NewTable(db *gorm.DB) (*gormtable.Table[{{.Model}}], error) {
+	return gormtable.Define(gormtable.Definition[{{.Model}}]{
+		DB: db,
+		Search: &datatable.SearchConfig{
+			Columns: []datatable.SearchColumn{datatable.Col("name").W(3)},
+		},
+		// Relevance: &gormtable.Relevance{Table: "{{.Table}}"}, // peringkat relevansi PostgreSQL
+		Filters: []datatable.Filter{
+			// datatable.Select("status", "Status", datatable.Field("status"), datatable.Options(datatable.Opt("active", "Active"))),
+		},
+		Sortable:    []string{"id", "name", "createdAt"},
+		DefaultSort: []datatable.SortRule{{"{{"}}Key: "createdAt", Dir: datatable.Desc{{"}}"}},
+	})
+}

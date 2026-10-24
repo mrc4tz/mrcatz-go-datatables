@@ -1,0 +1,130 @@
+// Kode ini dibuat oleh `mrcatz make {{.Name}}` — silakan diubah.
+
+package {{.Package}}
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/mrc4tz/mrcatz-go-datatables/gindt"
+	"gorm.io/gorm"
+)
+
+// Route adalah path endpoint {{.Label}} relatif terhadap grup API.
+const Route = "/{{.Route}}"
+
+// Register mendaftarkan endpoint {{.Label}} di bawah r:
+//
+//	api := router.Group("{{.APIBase}}")
+//	{{.Package}}.Register(api, db) // → {{.URL}}
+//
+//	GET    {{.Route}}              list (DataTable)
+//	GET    {{.Route}}/schema       skema filter
+//	GET    {{.Route}}/export       ekspor
+//	POST   {{.Route}}              tambah
+//	PATCH  {{.Route}}/:id          ubah
+//	DELETE {{.Route}}/:id          hapus
+//	POST   {{.Route}}/bulk-delete  hapus banyak {"ids": [...]}
+func Register(r gin.IRouter, db *gorm.DB) error {
+	table, err := NewTable(db)
+	if err != nil {
+		return err
+	}
+	h := &handler{db: db}
+	g := r.Group(Route, gindt.ErrorMiddleware())
+	gindt.Register(g, table)
+	g.POST("", h.create)
+	g.PATCH("/:id", h.update)
+	g.DELETE("/:id", h.remove)
+	g.POST("/bulk-delete", h.removeMany)
+	return nil
+}
+
+type handler struct{ db *gorm.DB }
+
+// TODO: ganti binding langsung ke model dengan DTO + validasi (tag `binding`).
+func (h *handler) create(c *gin.Context) {
+	var m {{.Model}}
+	if err := c.ShouldBindJSON(&m); err != nil {
+		gindt.Abort(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	m.ID = 0
+	if err := h.db.WithContext(c.Request.Context()).Create(&m).Error; err != nil {
+		gindt.InternalError(c, err)
+		return
+	}
+	gindt.JSON(c, http.StatusCreated, m)
+}
+
+func (h *handler) update(c *gin.Context) {
+	m, ok := h.find(c)
+	if !ok {
+		return
+	}
+	id := m.ID
+	if err := c.ShouldBindJSON(m); err != nil {
+		gindt.Abort(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	m.ID = id
+	if err := h.db.WithContext(c.Request.Context()).Save(m).Error; err != nil {
+		gindt.InternalError(c, err)
+		return
+	}
+	gindt.JSON(c, http.StatusOK, m)
+}
+
+func (h *handler) remove(c *gin.Context) {
+	m, ok := h.find(c)
+	if !ok {
+		return
+	}
+	if err := h.db.WithContext(c.Request.Context()).Delete(m).Error; err != nil {
+		gindt.InternalError(c, err)
+		return
+	}
+	gindt.JSON(c, http.StatusOK, m)
+}
+
+func (h *handler) removeMany(c *gin.Context) {
+	var body struct {
+		IDs []uint `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		gindt.Abort(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(body.IDs) == 0 {
+		gindt.JSON(c, http.StatusOK, gin.H{"count": 0})
+		return
+	}
+	res := h.db.WithContext(c.Request.Context()).Delete(&{{.Model}}{}, body.IDs)
+	if res.Error != nil {
+		gindt.InternalError(c, res.Error)
+		return
+	}
+	gindt.JSON(c, http.StatusOK, gin.H{"count": res.RowsAffected})
+}
+
+// find memuat baris berdasarkan parameter :id (400 bila bukan angka, 404 bila tidak ada).
+func (h *handler) find(c *gin.Context) (*{{.Model}}, bool) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		gindt.Abort(c, http.StatusBadRequest, "Validation failed (numeric string is expected)")
+		return nil, false
+	}
+	var m {{.Model}}
+	err = h.db.WithContext(c.Request.Context()).First(&m, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		gindt.Abort(c, http.StatusNotFound, "{{.Label}} tidak ditemukan")
+		return nil, false
+	}
+	if err != nil {
+		gindt.InternalError(c, err)
+		return nil, false
+	}
+	return &m, true
+}
